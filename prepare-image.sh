@@ -6,6 +6,20 @@ echo "install_weak_deps=False" >> /etc/dnf/dnf.conf
 # Tell RPM to skip installing documentation
 echo "tsflags=nodocs" >> /etc/dnf/dnf.conf
 
+dnf install -y 'dnf-command(config-manager)'
+
+# emulate uid/gid configuration to match rpm install
+# IRONIC_UID=997
+# IRONIC_GID=994
+
+# declare -a BUILD_DEPS=(
+#     gcc
+#     git-core
+#     python3-devel
+#     python3-jinja2
+#     python3-setuptools
+# )
+
 dnf upgrade -y
 
 xargs -rtd'\n' dnf install -y < /tmp/${PKGS_LIST}
@@ -35,7 +49,7 @@ if  [[ -f /tmp/main-packages-list.ocp ]]; then
     fi
 
     ### source install ###
-    BUILD_DEPS="python3.12-devel gcc gcc-c++ python3.12-wheel"
+    BUILD_DEPS="python3.12-devel gcc gcc-c++ python3.12-wheel git-core"
 
     # NOTE(elfosardo): wheel is needed because of pip "no-build-isolation" option
     # setting installation of setuptoools here as we may want to remove it
@@ -80,7 +94,9 @@ if  [[ -f /tmp/main-packages-list.ocp ]]; then
     getent group ironic >/dev/null || groupadd -r -g "${IRONIC_GID}" ironic
     getent passwd ironic >/dev/null || useradd -r -g ironic -s /sbin/nologin -u "${IRONIC_UID}" ironic -d /var/lib/ironic
 
-    dnf remove -y $BUILD_DEPS
+    # TEST(hroy) : comment dnf remove so that python3.12 dependecies of BUILD_DEPS don't get removed,
+    # For example, all the oslo* packages were missing, causing module not found errors
+    #dnf remove -y $BUILD_DEPS
     rm -fr $PIP_SOURCES_DIR
 
     if [[ -d "${REMOTE_SOURCES_DIR}/cachito-gomod-with-deps" ]]; then
@@ -102,3 +118,7 @@ usermod -aG ironic apache
 
 dnf clean all
 rm -rf /var/cache/{yum,dnf}/*
+
+mv /bin/ironic-probe.sh /bin/ironic-readiness
+cp /bin/ironic-readiness /bin/ironic-liveness
+mkdir /data /conf
